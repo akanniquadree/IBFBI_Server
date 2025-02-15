@@ -6,6 +6,7 @@ config.js
 config
 /.config
 /.config.js
+/.env
 .env
 # testing
 /coverage
