@@ -1,0 +1,60 @@
+const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("./Cloudinary_Config");
+
+/**
+ * Middleware to check if the title already exists in the database
+ */
+const checkTitleExists = async (req, res, next) => {
+  const { title } = req.params;
+  const folderName = req.params.folderName || "default_folder";
+
+  if (!title) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  const checkQuery = `SELECT * FROM ${folderName} WHERE title = ?`;
+  db.query(checkQuery, [title], (err, data) => {
+    if (err) {
+      console.error("Database Error:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    if (data.length > 0) {
+      return res.status(409).json({ error: "Title already exists" });
+    }
+    // If title doesn't exist, proceed to upload
+    next();
+  });
+};
+
+
+
+
+
+// Function to create a storage instance where title becomes the folder name
+const storage = (folderName) => {
+  return new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+      const title = req.params.title || "untitled"; // Default if no title is provided
+      const sanitizedTitle = title.replace(/\s+/g, "_"); // Replace spaces with underscores
+      const timestamp = Date.now(); // Ensure unique filenames
+      if (req.params.title) {
+        return {
+          folder: `IBFBI/${folderName}/${sanitizedTitle}`, // Title becomes the folder name
+          format: "png", // Change based on your needs
+          public_id: `${timestamp}`, // Filename is just the timestamp
+        };
+      }
+      return {
+        folder: `IBFBI/${folderName}`, // Title becomes the folder name
+        format: "png", // Change based on your needs
+        public_id: `${timestamp}`, // Filename is just the timestamp
+      };
+    },
+  });
+};
+
+const upload = (folderName) => multer({ storage: storage(folderName) });
+
+module.exports = {checkTitleExists, upload};
