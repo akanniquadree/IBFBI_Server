@@ -1,14 +1,16 @@
 const express = require("express");
-const {upload} = require("../Config/Upload_Config");
+const {upload, checkTitleExists} = require("../Config/Upload_Config");
 const db = require("../Config/Db_Config");
 const cloudinary  = require("../Config/Cloudinary_Config");
+const { authenticate, checkPermission } = require("../Config/Auth");
 
 const galleryRouter = express.Router();
 
 // Upload Image
 galleryRouter.post(
   "/gallery/:title",
-  upload("Gallery").array("img"),
+  authenticate,
+  upload("gallery").array("img"),
   (req, res) => {
     try {
       const img = req.files.map((file) => file.path);
@@ -70,7 +72,7 @@ galleryRouter.get("/gallery", (req, res) => {
 });
 
 // delete an image from the array
-galleryRouter.delete("/gallery/:id", (req, res) => {
+galleryRouter.delete("/gallery/:id",authenticate,(req, res) => {
   try {
     const id = req.params.id;
     const url = req.body.url;

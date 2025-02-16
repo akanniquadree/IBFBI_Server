@@ -1,7 +1,8 @@
 const express = require("express");
 const db = require("../Config/Db_Config");
-const { upload } = require("../Config/Upload_Config");
+const { upload, checkTitleExists } = require("../Config/Upload_Config");
 const cloudinary = require("../Config/Cloudinary_Config");
+const { authenticate, checkPermission } = require("../Config/Auth");
 
 const programRoute = express.Router();
 
@@ -38,10 +39,13 @@ programRoute.get("/programs/:id", (req, res) => {
 
 programRoute.post(
   "/programs/:title",
+  authenticate,
+  checkTitleExists,
   upload("program").single("img"),
   async (req, res) => {
     try {
       const { title, description } = req.body;
+      const ownerId = req.user
       const img = req.file ? req.file.path : null;
       if (!title || !img || !description) {
         return res
@@ -60,9 +64,9 @@ programRoute.post(
         }
         // if it doesnt exist the save
         const q = `
-        INSERT INTO program (title, description, img) VALUES (?,?,?)
+        INSERT INTO program (title, description, img, createdBy) VALUES (?,?,?,?)
     `;
-        const values = [title, description, img];
+        const values = [title, description, img, ownerId];
         db.query(q, values, function (err) {
           if (err) throw err;
           return res
@@ -78,11 +82,15 @@ programRoute.post(
 
 programRoute.put(
   "/programs/:id/:title",
+  authenticate,
+  checkPermission('program', 'createdBy', 'update'),
+  checkTitleExists,
   upload("program").single("img"),
   async (req, res) => {
     try {
       const { title, description } = req.body;
       const id = req.params.id;
+      const ownerId = req.user
       const img = req.file ? req.file.path : null;
       if (!title || !img || !description) {
         return res
@@ -128,9 +136,9 @@ programRoute.put(
                     console.log("Folder Deleted:", reslt);
                     // Then update the database
                     const q = `
-              UPDATE program SET title = ?, description = ?, img = ? WHERE id = ?
+              UPDATE program SET title = ?, description = ?, img = ?, createdBy = ?, WHERE id = ?
               `;
-                    const values = [title, description, img, id];
+                    const values = [title, description, img, ownerId, id];
                     db.query(q, values, function (err, result) {
                       if (err) {
                         console.error("Error updating data:", err);
@@ -172,9 +180,9 @@ programRoute.put(
               }
               console.log("Images Deleted:", data);
               const q = `
-        UPDATE program SET title = ?, description = ?, img = ? WHERE id = ?
+        UPDATE program SET title = ?, description = ?, img = ?, createdBy = ? WHERE id = ?
         `;
-              const values = [title, description, img, id];
+              const values = [title, description, img, ownerId, id];
               db.query(q, values, function (err, result) {
                 if (err) {
                   console.error("Error updating data:", err);
@@ -199,7 +207,7 @@ programRoute.put(
   }
 );
 
-programRoute.delete("/programs/:id", async (req, res) => {
+programRoute.delete("/programs/:id",authenticate, checkPermission('program', 'createdBy', 'delete'), async (req, res) => {
   const id = req.params.id;
   try {
     const q = "SELECT * FROM program WHERE id = ?";

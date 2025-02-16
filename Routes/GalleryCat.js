@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../Config/Db_Config");
+const { authenticate, checkPermission } = require("../Config/Auth");
 
 const galleryCatRouter = express.Router();
 
@@ -39,16 +40,17 @@ galleryCatRouter.get("/gallerycat/:id", (req, res) => {
 });
 
 //Update a  Gallery Category
-galleryCatRouter.put("/gallerycat/:id", (req, res) => {
+galleryCatRouter.put("/gallerycat/:id",authenticate,checkPermission('galleryCat','createdBy','update'),(req, res) => {
   const id = req.params.id;
+  const ownerId = req.user
   try {
     const { title } = req.body;
     if (!title) {
       return res.status(422).json({ error: "Fill all required Fields" });
     }
 
-    const q = "UPDATE galleryCat SET title = ? WHERE id = ? ";
-    const value = [title,id];
+    const q = "UPDATE galleryCat SET title = ?, createdBy = ? WHERE id = ? ";
+    const value = [title,ownerId,id];
     db.query(q, value, function (err, data) {
       if (err) {
         return res
@@ -69,9 +71,10 @@ galleryCatRouter.put("/gallerycat/:id", (req, res) => {
 });
 
 //Create a  Gallery Category
-galleryCatRouter.post("/gallerycat", (req, res) => {
+galleryCatRouter.post("/gallerycat",authenticate, (req, res) => {
   try {
     const { title } = req.body;
+    const ownerId = req.user
     if (!title) {
       return res.status(422).json({ error: "Fill all required Fields" });
     }
@@ -88,8 +91,8 @@ galleryCatRouter.post("/gallerycat", (req, res) => {
 
       // if it doesnt exist the save
 
-      const q = "INSERT INTO galleryCat (title) VALUES (?) ";
-      const value = [title];
+      const q = "INSERT INTO galleryCat (title, createdBy) VALUES (?,?) ";
+      const value = [title, ownerId];
       db.query(q, value, function (err, data) {
         if (err) {
           return res
@@ -107,7 +110,7 @@ galleryCatRouter.post("/gallerycat", (req, res) => {
   }
 });
 
-galleryCatRouter.delete("/gallerycat/:id", async (req, res) => {
+galleryCatRouter.delete("/gallerycat/:id",authenticate,checkPermission('galleryCat','createdBy','delete'), async (req, res) => {
   const id = req.params.id;
   try {
     const deleteQuery = "DELETE FROM galleryCat WHERE id = ?";
