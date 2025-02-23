@@ -1,13 +1,13 @@
 const express = require("express");
 const db = require("../Config/Db_Config");
-const { checkTitleExists, upload} = require("../Config/Upload_Config");
+const { checkTitleExists, upload, UpdatecheckTitleExists} = require("../Config/Upload_Config");
 const cloudinary = require("../Config/Cloudinary_Config");
 const { authenticate, checkPermission } = require("../Config/Auth");
 
 const blogRoute = express.Router();
 
 blogRoute.get("/blog", (req, res) => {
-  db.query("SELECT * FROM blog", function (err, data) {
+  db.query("SELECT blog.id AS id, blog.img, blog.paraOne, blog.paraTwo, blog.title, blog.date, admin.id AS admin_id, admin.role, admin.name FROM blog INNER JOIN admin ON blog.createdBy = admin.id ORDER BY admin.created_at DESC", function (err, data) {
     if (err) {
       console.log(err);
       return res.status(404).json({ error: err });
@@ -31,7 +31,7 @@ blogRoute.get("/blog/:id", (req, res) => {
   });
 });
 
-blogRoute.post("/blog/:title",authenticate, checkTitleExists, upload("blog").single("img"), (req, res) => {
+blogRoute.post("/blog/:title",authenticate, checkTitleExists("blog"), upload("blog").single("img"), (req, res) => {
   try {
     const { title, date, paraOne, paraTwo } = req.body;
     const img = req.file ? req.file.path : null;
@@ -65,7 +65,7 @@ blogRoute.post("/blog/:title",authenticate, checkTitleExists, upload("blog").sin
   }
 });
 
-blogRoute.put("/blog/:id/:title",authenticate, checkPermission("blog","createdBy","update"),checkTitleExists, upload("blog").single("img"), (req, res) => {
+blogRoute.put("/blog/:id/:title",authenticate, checkPermission("blog","createdBy","update"),UpdatecheckTitleExists('blog'), upload("blog").single("img"), (req, res) => {
   try {
     const id = req.params.id;
     const ownerId = req.user.id

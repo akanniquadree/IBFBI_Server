@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../Config/Db_Config");
-const { upload, checkTitleExists } = require("../Config/Upload_Config");
+const { upload, checkTitleExists, UpdatecheckTitleExists } = require("../Config/Upload_Config");
 const cloudinary = require("../Config/Cloudinary_Config");
 const { authenticate, checkPermission } = require("../Config/Auth");
 
@@ -9,14 +9,19 @@ const programRoute = express.Router();
 // Get all program
 programRoute.get("/programs", (req, res) => {
   try {
-    db.query("SELECT * FROM program", function (err, data) {
-      if (err) {
-        return res.status(404).json({ err, error: "Error in getting program" });
+    db.query(
+      `SELECT program.id AS id, program.title,program.img, program.description, admin.id AS admin_id, admin.role ,admin.name FROM program INNER JOIN admin ON  program.createdBy = admin.id ORDER BY program.created_at DESC` ,
+      function (err, data) {
+        if (err) {
+          return res
+            .status(404)
+            .json({ err, error: "Error in getting program" });
+        }
+        return res.status(200).json(data);
       }
-      return res.status(200).json(data);
-    });
+    );
   } catch (error) {
-    return res.status(500).json("Internal Error"); 
+    return res.status(500).json("Internal Error");
   }
 });
 
@@ -40,12 +45,12 @@ programRoute.get("/programs/:id", (req, res) => {
 programRoute.post(
   "/programs/:title",
   authenticate,
-  checkTitleExists,
+  checkTitleExists("program"),
   upload("program").single("img"),
   async (req, res) => {
     try {
       const { title, description } = req.body;
-      const ownerId = req.user
+      const ownerId = req.user.id;
       const img = req.file ? req.file.path : null;
       if (!title || !img || !description) {
         return res
@@ -63,9 +68,8 @@ programRoute.post(
           return res.status(409).json({ error: "Title already exists" });
         }
         // if it doesnt exist the save
-        const q = `
-        INSERT INTO program (title, description, img, createdBy) VALUES (?,?,?,?)
-    `;
+        const q =
+          " INSERT INTO program (title, description, img, createdBy) VALUES (?,?,?,?)";
         const values = [title, description, img, ownerId];
         db.query(q, values, function (err) {
           if (err) throw err;
@@ -75,6 +79,7 @@ programRoute.post(
         });
       });
     } catch (error) {
+      console.log(error)
       return res.status(500).json(error);
     }
   }
@@ -83,14 +88,14 @@ programRoute.post(
 programRoute.put(
   "/programs/:id/:title",
   authenticate,
-  checkPermission('program', 'createdBy', 'update'),
-  checkTitleExists,
+  checkPermission("program", "createdBy", "update"),
+  UpdatecheckTitleExists('program'),
   upload("program").single("img"),
   async (req, res) => {
     try {
       const { title, description } = req.body;
       const id = req.params.id;
-      const ownerId = req.user
+      const ownerId = req.user.id;
       const img = req.file ? req.file.path : null;
       if (!title || !img || !description) {
         return res
@@ -207,62 +212,67 @@ programRoute.put(
   }
 );
 
-programRoute.delete("/programs/:id",authenticate, checkPermission('program', 'createdBy', 'delete'), async (req, res) => {
-  const id = req.params.id;
-  try {
-    const q = "SELECT * FROM program WHERE id = ?";
-    db.query(q, [id], function (err, data) {
-      if (err) {
-        console.error("Database Error:", err);
-        return res.status(500).json({ error: "Database error" });
-      }
-      if (data.length === 0) {
-        return res.status(404).json({ error: "Program not found" });
-      }
-      //   Delete the Image from Clodinary
-      const title = data[0].title;
-      const sanitizedTitle = title.replace(/\s+/g, "_"); // Ensure it's correctly formatted
-      const folderName = `IBFBI/program/${sanitizedTitle}`;
-      cloudinary.api.delete_resources_by_prefix(
-        folderName,
-        async function (err, result) {
-          if (err) {
-            console.error("Cloudinary Image Deletion Error:", err);
-            return res
-              .status(500)
-              .json({ error: "Error deleting images from Cloudinary" });
-          }
-          console.log("Images Deleted:", result);
-          // 🔹 3. Delete the Folder Itself
-          cloudinary.api.delete_folder(folderName, async (error, reslt) => {
-            if (error) {
-              console.error("Cloudinary Folder Deletion Error:", error);
+programRoute.delete(
+  "/programs/:id",
+  authenticate,
+  checkPermission("program", "createdBy", "delete"),
+  async (req, res) => {
+    const id = req.params.id;
+    try {
+      const q = "SELECT * FROM program WHERE id = ?";
+      db.query(q, [id], function (err, data) {
+        if (err) {
+          console.error("Database Error:", err);
+          return res.status(500).json({ error: "Database error" });
+        }
+        if (data.length === 0) {
+          return res.status(404).json({ error: "Program not found" });
+        }
+        //   Delete the Image from Clodinary
+        const title = data[0].title;
+        const sanitizedTitle = title.replace(/\s+/g, "_"); // Ensure it's correctly formatted
+        const folderName = `IBFBI/program/${sanitizedTitle}`;
+        cloudinary.api.delete_resources_by_prefix(
+          folderName,
+          async function (err, result) {
+            if (err) {
+              console.error("Cloudinary Image Deletion Error:", err);
               return res
                 .status(500)
-                .json({ error: "Error deleting folder from Cloudinary" });
+                .json({ error: "Error deleting images from Cloudinary" });
             }
-
-            console.log("Folder Deleted:", reslt);
-            const deleteQuery = "DELETE FROM program WHERE id = ?";
-            db.query(deleteQuery, [id], (errrr) => {
-              if (errrr) {
-                console.error("Database Deletion Error:", errrr);
+            console.log("Images Deleted:", result);
+            // 🔹 3. Delete the Folder Itself
+            cloudinary.api.delete_folder(folderName, async (error, reslt) => {
+              if (error) {
+                console.error("Cloudinary Folder Deletion Error:", error);
                 return res
                   .status(500)
-                  .json({ error: "Error deleting from database" });
+                  .json({ error: "Error deleting folder from Cloudinary" });
               }
-              return res
-                .status(200)
-                .json({ message: "Program deleted successfully" });
+
+              console.log("Folder Deleted:", reslt);
+              const deleteQuery = "DELETE FROM program WHERE id = ?";
+              db.query(deleteQuery, [id], (errrr) => {
+                if (errrr) {
+                  console.error("Database Deletion Error:", errrr);
+                  return res
+                    .status(500)
+                    .json({ error: "Error deleting from database" });
+                }
+                return res
+                  .status(200)
+                  .json({ message: "Program deleted successfully" });
+              });
             });
-          });
-        }
-      );
-    });
-  } catch (error) {
-    console.error("Server Error:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+          }
+        );
+      });
+    } catch (error) {
+      console.error("Server Error:", error);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
   }
-});
+);
 
 module.exports = programRoute;

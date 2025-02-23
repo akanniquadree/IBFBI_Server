@@ -1,13 +1,14 @@
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("./Cloudinary_Config");
+const db = require("./Db_Config");
 
 /**
  * Middleware to check if the title already exists in the database
  */
-const checkTitleExists = async (req, res, next) => {
+const checkTitleExists = (folder) => async (req, res, next) => {
   const { title } = req.params;
-  const folderName = req.params.folderName || "default_folder";
+  const folderName = folder || "default_folder";
 
   if (!title) {
     return res.status(400).json({ error: "Title is required" });
@@ -27,9 +28,37 @@ const checkTitleExists = async (req, res, next) => {
   });
 };
 
+const UpdatecheckTitleExists = (folder) => async (req, res, next) => {
+  const { title } = req.params;
+  const folderName = folder || "default_folder";
 
+  if (!title) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+  const existQuery = `SELECT * FROM ${folderName} WHERE id =?`;
+  db.query(existQuery, [req.params.id], function (err, data) {
+    if (err) return res.status(500).json({ error: "Database error!" });
 
+    if (data.length === 0) {
+      return res.status(404).json({ error: "Data not found" });
+    }
 
+    // 2️⃣ If email is being changed, check if it's already taken
+    if (title !== data[0].title) {
+      const checkQuery = `SELECT * FROM ${folderName} WHERE title = ?`;
+      db.query(checkQuery, [title], function (err, result) {
+        if (err) return res.status(500).json({ error: "Database error!" });
+
+        if (data.length > 0) {
+          return res.status(404).json({ error: "Title already Exist" });
+        }
+        next();
+      });
+    } else {
+      next();
+    }
+  });
+};
 
 // Function to create a storage instance where title becomes the folder name
 const storage = (folderName) => {
@@ -57,4 +86,4 @@ const storage = (folderName) => {
 
 const upload = (folderName) => multer({ storage: storage(folderName) });
 
-module.exports = {checkTitleExists, upload};
+module.exports = { checkTitleExists, upload, UpdatecheckTitleExists};

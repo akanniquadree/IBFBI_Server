@@ -19,11 +19,14 @@ const app = express()
 
 
 // MiddleWare
-
+app.use(cookieParser())
 app.use(express.json())
 app.use(morgan())
-app.use(cors())
-app.use(cookieParser())
+app.use(cors({
+    origin: "http://localhost:3000",
+    credentials: true, // Allow cookies and authorization headers
+  }))
+
 
 
 

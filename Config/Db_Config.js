@@ -59,6 +59,7 @@ db.connect(function (err) {
         CREATE TABLE IF NOT EXISTS admin(
         id INT AUTO_INCREMENT PRIMARY KEY,
         email VARCHAR(255),
+        name VARCHAR(255),
         password VARCHAR(255),
         role VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

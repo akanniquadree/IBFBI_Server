@@ -1,13 +1,15 @@
 const express = require("express");
 const db = require("../Config/Db_Config");
 const { authenticate, checkPermission } = require("../Config/Auth");
+const { UpdatecheckTitleExists } = require("../Config/Upload_Config");
 
 const galleryCatRouter = express.Router();
 
 // Get all program
 galleryCatRouter.get("/gallerycat", (req, res) => {
   try {
-    db.query("SELECT * FROM galleryCat", function (err, data) {
+    db.query("SELECT galleryCat.id AS id, galleryCat.title, gallery.img,admin.name, admin.role FROM galleryCat LEFT JOIN gallery ON gallery.gallerycat_id = galleryCat.id INNER JOIN admin ON galleryCat.createdBy = admin.id ORDER BY galleryCat.created_at DESC", function (err, data) {
+    // db.query("SELECT * FROM galleryCat", function (err, data) {
       if (err) {
         return res
           .status(404)
@@ -40,9 +42,9 @@ galleryCatRouter.get("/gallerycat/:id", (req, res) => {
 });
 
 //Update a  Gallery Category
-galleryCatRouter.put("/gallerycat/:id",authenticate,checkPermission('galleryCat','createdBy','update'),(req, res) => {
+galleryCatRouter.put("/gallerycat/:id/:title",authenticate,checkPermission('galleryCat','createdBy','update'), UpdatecheckTitleExists('galleryCat'),(req, res) => {
   const id = req.params.id;
-  const ownerId = req.user
+  const ownerId = req.user.id
   try {
     const { title } = req.body;
     if (!title) {
@@ -74,7 +76,7 @@ galleryCatRouter.put("/gallerycat/:id",authenticate,checkPermission('galleryCat'
 galleryCatRouter.post("/gallerycat",authenticate, (req, res) => {
   try {
     const { title } = req.body;
-    const ownerId = req.user
+    const ownerId = req.user.id
     if (!title) {
       return res.status(422).json({ error: "Fill all required Fields" });
     }
